@@ -14,6 +14,9 @@
 #include <vector> 
 #include <utility>
 #include <iomanip>
+#include <unistd.h>
+#include <chrono>
+#include <thread>
 #include "point.h"
 
 using namespace std;
@@ -165,7 +168,9 @@ public:
    
    bool onplanet = false;
    bool iscar = false; 
-   
+   float maxSpeed = 15.f;
+   float health = 1000.f;
+
    Car* car = new Car(); 
    Entity* planet = new Entity();
    
@@ -189,8 +194,7 @@ public:
                                          it->y - dy),
                                    R,it->R,1.01)) {
                             onplanet = true;
-
-                            planet = it; 
+                            planet = it;
 			}
 			if(!iscar) {
 			 if (isNear(Point(x,y),
@@ -199,10 +203,10 @@ public:
 				   R,it->R,1)) {
 			    ref = refine(Point(x,y), 
 			    		 Point(it->x - dx, it->y - dy), R,it->R);
-			  
+			    if(sqrt(pow(dx + ref.x, 2) + pow(dy + ref.y, 2)) > 1)
+				    health = health - 1
+					              *sqrt(pow(dx + ref.x, 2)+                                                               pow(dy + ref.y,2));
 			    if(!thrust) {
-				ref.x *= 1.0;
-    				ref.y *= 1.0;
 				dx *= 0.95;
 				dy *= 0.95; 
 			    }
@@ -213,8 +217,9 @@ public:
 	   }
 	   if(!onplanet) 
 		   iscar = false;
-	   
-	   return Point(dx + ref.x, dy + ref.y);
+	   dx += ref.x;
+	   dy += ref.y;
+	   return Point(dx, dy);
    }
 
    void update() { 
@@ -229,7 +234,6 @@ public:
         dy*=0.99; 
       }
 
-     int maxSpeed=15;
      float speed = sqrt(dx*dx+dy*dy);
 
      if (speed>maxSpeed) {	    
@@ -246,10 +250,8 @@ public:
        dy = delta.y;
    } 
  }
-   float getSpeed(/*list<Entity*> p*/){
-       //Point ref refine(Point(x, y), Point
+   float getSpeed(){
        return sqrt(dx*dx+dy*dy);
-       //return sqrt(pow(getDelta(p).x, 2) + pow(getDelta(p).y, 2));
    }
 
 };
@@ -313,18 +315,20 @@ int main()
     Text text("", font1, 30);
     text.setFillColor(Color::Red);
     text.setPosition(5.f, 5.f); 
-    //text.setStyle(Text::Bold | Text::Underlined);
     
     Text text1("", font, 15); 
     text1.setFillColor(Color::Green);
-    text1.setPosition(5.f, 170.f);
+    text1.setPosition(5.f, 200.f);
     
     Text text2("", font, 25);
     text2.setFillColor(Color::Blue);
-    text2.setPosition(450.f, 5.f); 
-    //text2.setString(can_drive); 
+    text2.setPosition(450.f, 5.f);
 
-    //////////////playing music///////////////////////////
+    Text text3("", font1, 100);
+    text3.setFillColor(Color::White);
+    text3.setPosition(270.f, 450.f);
+
+    //////////////playing background music///////////////////////////
     SoundBuffer buffer;
     if (!buffer.loadFromFile("Space.wav"))
         return -1;
@@ -332,8 +336,8 @@ int main()
     sound.setBuffer(buffer);
     sound.setLoop(true);
     sound.play();
-    //bool sound_on = false;	
     
+    //////////////sound of rocket in turbo mode////////////////////
     SoundBuffer buf_rocket;
     if (!buf_rocket.loadFromFile("rocket.wav"))
         return -1;
@@ -341,11 +345,13 @@ int main()
     rocket.setBuffer(buf_rocket);
     
     ////////////draw pictures and create animation///////
-    Texture t1, t2, t3, t4;
+    Texture t1, t2, t3, t4, t5;
     t1.loadFromFile("planets/spaceship(1).png");
     t2.loadFromFile("space.png");
     t3.loadFromFile("planets/sun2048.png");
     t4.loadFromFile("car40.png");
+    t5.loadFromFile("Hole.png");
+
     string dir = "planets/"; 
 
     vector<string> values = {"128.png", "256.png", "512.png"};
@@ -364,6 +370,7 @@ int main()
     t2.setSmooth(true);
     t3.setSmooth(true);
     t4.setSmooth(true);
+    t5.setSmooth(true);
 
     for(auto& it : textures) 
 	    it.setSmooth(true);
@@ -376,6 +383,7 @@ int main()
     Animation sPlayer_go(t1, 40,85,40,40, 1, 0);
     Animation sSun(t3, 0, 0, 2048, 2048, 1, 0);
     Animation sCar(t4, 0, 0, 40, 40, 1, 0);
+    Animation sHole(t5, 0, 0, 1230, 1264, 1, 0);
 
     list<Entity*> planets;
     int k = 0;
@@ -411,6 +419,11 @@ int main()
 		 1024, 400000);
     planets.push_back(pl);
 
+    Planet* bh = new Planet();
+    bh->settings(sHole,-(rand()%10000 + 12000), -(rand()%10000 + 10000),
+		 rand()%360, 100, 90000000);
+    planets.push_back(bh);
+
     player *p = new player();
     p->settings(sPlayer,static_cast<int>(W/2),static_cast<int>(H/2),0,20,2700);
 
@@ -432,8 +445,16 @@ int main()
 		return false; 
 	    
 	}
+
+	(*prev(planets.end()))->angle += 1;
+
 	if(!p->iscar) {
          if (Keyboard::isKeyPressed(Keyboard::LShift) && p->thrust) {
+		if(p->fuel > 0)
+		    p->maxSpeed = 30;
+		else if (p->maxSpeed > 15)
+			p->maxSpeed *= 0.99;
+
 		if(p->fuel > 0) {
 			rocket.play();
 			p->acceleration += 0.01;
@@ -447,6 +468,9 @@ int main()
 	 else { 
 		p->acceleration = 0.05; 
 		
+		if(p->maxSpeed > 15)
+			p->maxSpeed *= 0.99;
+
 		if(p->fuel < 1000)
 			p->fuel += 10;
 	 } 
@@ -479,6 +503,7 @@ int main()
 		 can_drive = "You are on planet, land the rocket!";
 	  }
 	 }
+
 	 else {
 		 can_drive = "Flying! Land on a planet to drive!\n";
 	         can_drive += "Press 'LShift' for turbo mode!";
@@ -505,6 +530,9 @@ int main()
 	}
 	
 	else {
+            if(p->health < 1200)
+                  p->health += 0.1 * p->getSpeed();
+
 	 if(Keyboard::isKeyPressed(Keyboard::Space)) {
 		 if(cadr_number > 20) {
 			if(isNear(Point(p->x, p->y), Point(p->car->x, p->car->y),
@@ -549,23 +577,15 @@ int main()
         window.clear();
 	window.draw(background);
 
-	//////////////////////////draw objects////////////////////////////////	    
-	for (auto it : planets) 
-		it->draw(window);
-	
-	p->draw(window);
-	
-	if(p->iscar)
-		p->car->draw(window);
-	
-	//cout << "Car angle: " << p->car->angle << endl;
+	//////////////////////////draw objects//////////////////////////////
 
 	ostringstream Speed;
 	ostringstream Acceleration;
         ostringstream playerPosString;
 	ostringstream globalcoords;
         ostringstream Fuel;
-	
+	ostringstream Health;
+
 	pos_x += delta.x;
 	pos_y += delta.y;
 	playerPosString << static_cast<int>(pos_x) << " "
@@ -576,22 +596,30 @@ int main()
 	
 	globalcoords << endl;
 	
-	globalcoords << "Sun: " << (*prev(planets.end()))->x_global << " " <<
-		                   (*prev(planets.end()))->y_global << " " <<
-				   (*prev(planets.end()))->R << endl;
-	Fuel << p->fuel;
+	auto it_last = prev(planets.end());
 
-	for(auto it : planets) {
+	globalcoords<<"Black Hole: "<< (*it_last)->x_global << " " <<
+		                   (*it_last)->y_global << " " <<
+				   (*it_last)->R << endl;
+        globalcoords << "Sun: "<< (*prev(it_last))->x_global << " " <<
+                                   (*prev(it_last))->y_global << " " <<
+                                   (*prev(it_last))->R << endl;
+
+	Fuel << p->fuel;
+	Health << static_cast<int>(p->health);
+
+	/*for(auto it : planets) {
 		globalcoords << it->x_global << " " << it->y_global << " " <<
 		         	it->R <<"\n";
-	}
+	}*/
 
         text.setString("Position: " + playerPosString.str() + "\n" +
                        "Speed: " + Speed.str() + "\n" +
 		       "Acceleration: " + Acceleration.str() +"\n" + 
-		       "Fuel: " + Fuel.str() + "\n");
+		       "Fuel: " + Fuel.str() + "\n" +
+		       "Health: " + Health.str() + "\n");
 
-	text1.setString("Planets: " + globalcoords.str());
+	text1.setString(/*"Planets: " + */globalcoords.str());
 	
 	if(p->iscar)  {
 		if(isNear(Point(p->x, p->y), Point(p->car->x, p->car->y),
@@ -602,11 +630,33 @@ int main()
 	}
 
 	text2.setString(can_drive);
+
+	for (auto it : planets)
+                it->draw(window);
+
+        p->draw(window);
+
+        if(p->iscar)
+                p->car->draw(window);
+
         window.draw(text);
 	window.draw(text1);
 	window.draw(text2);
-	window.display();  	     
-          
+
+	if(p->health < 0) {
+	     text3.setString("GAME OVER!\nPress space to escape");
+	     window.draw(text3);
+	}
+	window.display();
+
+	if(p->health < 0) {
+             this_thread::sleep_for(chrono::milliseconds(2000));
+	     while(true) {
+	         if(Keyboard::isKeyPressed(Keyboard::Space))
+			 break;
+	     }
+             window.close();
+	}
     }
     return 0;
 }
