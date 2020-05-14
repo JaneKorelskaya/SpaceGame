@@ -142,9 +142,9 @@ public:
 	    float alp = 0;
 	    
 	    if(right) 
-                alp = 1;
+                alp = 1 * 128 / planet_r;
 	    else if(left)
-		alp = -1;
+		alp = -1 * 128 / planet_r;
 
 	    if(alp != 0) {
 	     result.y = (planet_r + R) * (sin(DEGTORAD*fmod((angle + alp),360)) - 
@@ -492,11 +492,13 @@ int main()
          	alpha = -alpha;
          }
 	 player_angle = fmod(p->angle + 90, 360);
-         if(player_angle > 180) {
+
+	 if(player_angle > 180) {
          	player_angle = player_angle - 360;
-         } 
+         }
+
 	 if (p->onplanet) {
-          if(abs(player_angle -  alpha) < 30) {
+          if(abs(player_angle - alpha) < 30) {
 		 can_drive = "Press space to turn into the car!";
 	  }
 	  else {
@@ -600,10 +602,10 @@ int main()
 
 	globalcoords<<"Black Hole: "<< (*it_last)->x_global << " " <<
 		                   (*it_last)->y_global << " " <<
-				   (*it_last)->R << endl;
+				   /*(*it_last)->R <<*/ endl;
         globalcoords << "Sun: "<< (*prev(it_last))->x_global << " " <<
                                    (*prev(it_last))->y_global << " " <<
-                                   (*prev(it_last))->R << endl;
+                                   /*(*prev(it_last))->R <<*/ endl;
 
 	Fuel << p->fuel;
 	Health << static_cast<int>(p->health);
